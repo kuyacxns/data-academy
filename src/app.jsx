@@ -568,7 +568,7 @@ function LanguagePicker({ onSelect }) {
 // 7. THEORY PANEL
 // ════════════════════════════════════════════════════════════════════════════
 
-function TheoryPanel({ lesson, activeLang, langColor, onExercise }) {
+function TheoryPanel({ lesson, activeLang, langColor, langColorHex, onExercise }) {
   const isSAS = activeLang === "SAS";
   const contentRef = React.useRef(null);
   const ctaRef = React.useRef(null);
@@ -725,18 +725,18 @@ function TheoryPanel({ lesson, activeLang, langColor, onExercise }) {
 
       {/* ── End-of-theory CTA ── */}
       <div ref={ctaRef} className="theory-cta" style={{
-        "--cta-glow": langColor + "18",
+        "--cta-glow": langColorHex + "18",
         opacity: ctaVisible ? 1 : 0,
         transform: ctaVisible ? "translateY(0) scale(1)" : "translateY(32px) scale(0.97)",
         transition: "opacity 0.7s cubic-bezier(0.22,1,0.36,1), transform 0.7s cubic-bezier(0.22,1,0.36,1)",
         pointerEvents: ctaVisible ? "auto" : "none"
       }}>
-        <div className="theory-cta-box" style={{ borderColor: langColor + "22" }}>
+        <div className="theory-cta-box" style={{ borderColor: langColorHex + "22" }}>
           {/* Decorative top border line */}
           <div style={{
             position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
             width: "60%", height: 1,
-            background: "linear-gradient(90deg, transparent, " + langColor + ", transparent)"
+            background: "linear-gradient(90deg, transparent, " + langColorHex + ", transparent)"
           }} />
 
           <div style={{ fontSize: 28, marginBottom: 12, lineHeight: 1 }}>🎯</div>
@@ -751,8 +751,8 @@ function TheoryPanel({ lesson, activeLang, langColor, onExercise }) {
             className="theory-cta-btn"
             onClick={onExercise}
             style={{
-              background: "linear-gradient(135deg, " + langColor + " 0%, " + langColor + "cc 100%)",
-              boxShadow: "0 8px 32px " + langColor + "55, 0 2px 8px " + langColor + "33, inset 0 1px 0 rgba(255,255,255,0.25)"
+              background: "linear-gradient(135deg, " + langColorHex + " 0%, " + langColorHex + "cc 100%)",
+              boxShadow: "0 8px 32px " + langColorHex + "55, 0 2px 8px " + langColorHex + "33, inset 0 1px 0 rgba(255,255,255,0.25)"
             }}
           >
             Zur Übung
@@ -770,13 +770,14 @@ function TheoryPanel({ lesson, activeLang, langColor, onExercise }) {
 // ════════════════════════════════════════════════════════════════════════════
 
 function ExercisePanel({
-  lesson, activeLang, langColor,
+  lesson, activeLang, langColor, langColorHex,
   code, setCode,
   aiOutput, aiLoading, checkWithAI, loadSolution,
   markComplete, completed, showHint, setShowHint, activeHint, setActiveHint,
   groqApiKey, setGroqApiKey,
   vizPhase, vizOps
 }) {
+  if (!langColorHex) langColorHex = activeLang === 'SAS' ? '#f59e0b' : '#38bdf8';
   const isSAS  = activeLang === "SAS";
   const hints  = lesson.exercise?.hints || [];
   const [showViz, setShowViz] = React.useState(true);
@@ -848,7 +849,7 @@ function ExercisePanel({
       />
 
       {/* Pixel Art Visualizer */}
-      {showViz && <PixelArtViz code={code} lesson={lesson} langColor={langColor} vizPhase={vizPhase} vizOps={vizOps} />}
+      {showViz && <PixelArtViz code={code} lesson={lesson} langColor={langColorHex} vizPhase={vizPhase} vizOps={vizOps} />}
 
       {/* Actions row */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -1172,16 +1173,13 @@ function App() {
     pyCode:  codeState.pyCode,
   });
 
-  // Reset hint + tab on lesson change
+  // Reset UI state on lesson change
   useEffect(() => {
     setShowHint(false);
     setActiveHint(0);
     setTab('theory');
     aiCheck.setAiOutput('');
   }, [activeLesson.id]);
-
-  // Reset AI output on lesson change (declared here to avoid closure issues)
-  useEffect(() => { aiCheck.setAiOutput(''); }, [activeLesson.id]);
 
   // Scroll content to top on lesson/tab change — triple-fire for React batching
   useEffect(() => {
@@ -1293,12 +1291,12 @@ function App() {
           <div style={{ flex: 1, padding: '32px', maxWidth: 860, width: '100%', margin: '0 auto' }}>
             {tab === 'theory' ? (
               <TheoryPanel
-                lesson={activeLesson} activeLang={activeLang} langColor={langColor}
+                lesson={activeLesson} activeLang={activeLang} langColor={langColor} langColorHex={langColorHex}
                 onExercise={() => setTab('exercise')}
               />
             ) : (
               <ExercisePanel
-                lesson={activeLesson} activeLang={activeLang} langColor={langColor}
+                lesson={activeLesson} activeLang={activeLang} langColor={langColor} langColorHex={langColorHex}
                 code={isSAS ? codeState.sasCode : codeState.pyCode}
                 setCode={isSAS ? codeState.setSasCode : codeState.setPyCode}
                 aiOutput={aiCheck.aiOutput} aiLoading={aiCheck.aiLoading}
@@ -1323,3 +1321,5 @@ function App() {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
+  </script>
+
