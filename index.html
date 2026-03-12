@@ -6297,6 +6297,13 @@ const AI_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const LANG_COLOR = { SAS: '#ffd600', PySpark: '#818cf8' };
 const LANG_VAR   = { SAS: 'var(--sas)', PySpark: 'var(--py)' };
 
+// ★ ANTI-SCHLEIFEN FIX ★
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+const TIMEOUT_MS = 15000;
+let controller = null;
+
+
 // ════════════════════════════════════════════════════════════════════════════
 // 2. DIFFICULTY MAP
 // ════════════════════════════════════════════════════════════════════════════
@@ -6394,13 +6401,6 @@ function useCodeState(lesson) {
       ? `# ${desc}\n# Schreibe deinen PySpark-Code hier:\n\n` : '');
   }, [lesson.id]);
 
-  const loadSolution = (type) => {
-    if (type === 'sas') setSasCode((lesson.exercise && lesson.exercise.sasSolution) || '');
-    else                setPyCode((lesson.exercise && lesson.exercise.pysparkSolution) || '');
-  };
-
-  return { sasCode, setSasCode, pyCode, setPyCode, loadSolution };
-}
 
 /**
  * useAICheck — Groq API code review with viz-phase lifecycle.
@@ -6490,56 +6490,65 @@ _Ein Satz warum._
       `Bewerte den Code des Lernenden konkret. ${langCheck}` +
       ` Zeige niemals die Musterlösung — gib stattdessen gezielte Hinweise die zum Ziel führen.`;
 
-       let isMounted = true;
+      // ★ KORRIGIERTER API-CALL ★
+const callGroqAPI = async (messages) => {
+  if (controller) controller.abort();
+  controller = new AbortController();
 
-      try {
-        if (!groqApiKey.trim()) {
-          setAiOutput('🔑 Bitte gib zuerst deinen Groq API-Key ein.');
-          return;
-        }
-      
-        const res = await fetch(AI_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqApiKey.trim() },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            max_tokens: 1200,
-            temperature: 0.3,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ]
-          })
-        });
-      
-        if (!isMounted) return;
-      
-        const data = await res.json();
-      
-        if (!isMounted) return;
-      
-        if (data.error) {
-          setAiOutput('❌ Groq Fehler: ' + data.error.message);
-        } else {
-          if (!isMounted) return;
-          setAiOutput((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || 'Keine Antwort erhalten.');
-        }
-      } catch (err) {
-        if (!isMounted) return;
-        setAiOutput('❌ Verbindungsfehler: ' + (err && err.message ? err.message : 'Unbekannter Fehler'));
-      } finally {
-        if (!isMounted) return;
-        clearTimeout(aiTimeout);
-        setAiLoading(false);
-        setVizPhase('done');
-      }
+  try {
+    const response = await Promise.race([
+      fetch(AI_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${groqApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: AI_MODEL,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2000
+        })
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('⏰ Timeout')), TIMEOUT_MS)
+      )
+    ]);
 
-     
-    setTimeout(() => setVizPhase('idle'), 8000);
-  };
+    if (response.status === 429) {
+      setAiOutput('⏳ Rate Limit - versuche es in 10s erneut');
+      setAiLoading(false);
+      return;
+    }
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    setAiOutput(data.choices[0].message.content);
+    setAiLoading(false);
+    setVizPhase('done');
+
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      setAiOutput(`❌ ${error.message}`);
+      setAiLoading(false);
+    }
+  }
+};
+
+// ENDE von checkWithAI - KORRIGIERT
+const messages = [
+  { role: "system", content: systemPrompt },
+  { role: "user", content: userPrompt }
+];
+await callGroqAPI(messages);
+clearTimeout(aiTimeout);
+setVizPhase('done');
 
   return { groqApiKey, setGroqApiKey, aiOutput, setAiOutput, aiLoading, vizPhase, vizOps, checkWithAI };
 }
+
 
 // ════════════════════════════════════════════════════════════════════════════
 // 4. SMALL UI COMPONENTS
