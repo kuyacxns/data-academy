@@ -6490,65 +6490,48 @@ _Ein Satz warum._
       `Bewerte den Code des Lernenden konkret. ${langCheck}` +
       ` Zeige niemals die Musterlösung — gib stattdessen gezielte Hinweise die zum Ziel führen.`;
 
-      // ★ KORRIGIERTER API-CALL ★
-const callGroqAPI = async (messages) => {
-  if (controller) controller.abort();
-  controller = new AbortController();
-
-  try {
-    const response = await Promise.race([
-      fetch(AI_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: AI_MODEL,
-          messages,
-          temperature: 0.7,
-          max_tokens: 2000
-        })
-      }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('⏰ Timeout')), TIMEOUT_MS)
-      )
-    ]);
-
-    if (response.status === 429) {
-      setAiOutput('⏳ Rate Limit - versuche es in 10s erneut');
-      setAiLoading(false);
-      return;
-    }
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
-    const data = await response.json();
-    setAiOutput(data.choices[0].message.content);
-    setAiLoading(false);
-    setVizPhase('done');
-
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      setAiOutput(`❌ ${error.message}`);
-      setAiLoading(false);
-    }
-  }
-};
-
-// ENDE von checkWithAI - KORRIGIERT
+// API Call - HIER INNERHALB checkWithAI
 const messages = [
   { role: "system", content: systemPrompt },
   { role: "user", content: userPrompt }
 ];
-await callGroqAPI(messages);
+
+if (controller) controller.abort();
+controller = new AbortController();
+
+fetch(AI_ENDPOINT, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${groqApiKey}`,
+    'Content-Type': 'application/json',
+  },
+  signal: controller.signal,
+  body: JSON.stringify({
+    model: AI_MODEL,
+    messages,
+    temperature: 0.7,
+    max_tokens: 2000
+  })
+})
+.then(response => {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+})
+.then(data => {
+  setAiOutput(data.choices[0].message.content);
+  setAiLoading(false);
+  setVizPhase('done');
+})
+.catch(error => {
+  if (error.name !== 'AbortError') {
+    setAiOutput(`❌ ${error.message}`);
+    setAiLoading(false);  // HIER nur EINMAL
+  }
+});
+
 clearTimeout(aiTimeout);
-setVizPhase('done');
 
   return { groqApiKey, setGroqApiKey, aiOutput, setAiOutput, aiLoading, vizPhase, vizOps, checkWithAI };
-}
-
 
 // ════════════════════════════════════════════════════════════════════════════
 // 4. SMALL UI COMPONENTS
