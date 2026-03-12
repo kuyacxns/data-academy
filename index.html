@@ -6490,23 +6490,51 @@ _Ein Satz warum._
       `Bewerte den Code des Lernenden konkret. ${langCheck}` +
       ` Zeige niemals die Musterlösung — gib stattdessen gezielte Hinweise die zum Ziel führen.`;
 
-    try {
-      const res  = await fetch(AI_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqApiKey.trim() },
-        body: JSON.stringify({ model: AI_MODEL, max_tokens: 1200, temperature: 0.3,
-          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }] })
-      });
-      const data = await res.json();
-      if (data.error) setAiOutput('❌ Groq Fehler: ' + data.error.message);
-      else            setAiOutput((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || 'Keine Antwort erhalten.');
-    } catch (err) {
-      setAiOutput('❌ Verbindungsfehler: ' + (err && err.message ? err.message : 'Unbekannter Fehler'));
-    } finally {
-      clearTimeout(aiTimeout);
-      setAiLoading(false);
-      setVizPhase('done');
-    }
+       let isMounted = true;
+
+      try {
+        if (!groqApiKey.trim()) {
+          setAiOutput('🔑 Bitte gib zuerst deinen Groq API-Key ein.');
+          return;
+        }
+      
+        const res = await fetch(AI_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + groqApiKey.trim() },
+          body: JSON.stringify({
+            model: AI_MODEL,
+            max_tokens: 1200,
+            temperature: 0.3,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ]
+          })
+        });
+      
+        if (!isMounted) return;
+      
+        const data = await res.json();
+      
+        if (!isMounted) return;
+      
+        if (data.error) {
+          setAiOutput('❌ Groq Fehler: ' + data.error.message);
+        } else {
+          if (!isMounted) return;
+          setAiOutput((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || 'Keine Antwort erhalten.');
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setAiOutput('❌ Verbindungsfehler: ' + (err && err.message ? err.message : 'Unbekannter Fehler'));
+      } finally {
+        if (!isMounted) return;
+        clearTimeout(aiTimeout);
+        setAiLoading(false);
+        setVizPhase('done');
+      }
+
+     
     setTimeout(() => setVizPhase('idle'), 8000);
   };
 
